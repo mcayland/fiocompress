@@ -37,13 +37,15 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <utility.h>
 #include <zlib.h>
-
-#include <sys/filio.h>
-#include <sys/fs/decomp.h>
+#include <string.h>
+#include <stdint.h>
 
 #include "message.h"
+
+#include "decomp.h"
+typedef unsigned long ulong_t;
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 static void	setup_infile(char *);
 static void	setup_outfile(char *);
@@ -68,11 +70,8 @@ main(int argc, char **argv)
 	size_t	blksize = 8192;
 	char c;
 
-	while ((c = getopt(argc, argv, "mcdb:")) != -1) {
+	while ((c = getopt(argc, argv, "cdb:")) != -1) {
 		switch (c) {
-		case 'm':
-			doioc++;
-			break;
 		case 'c':
 			if (decompress) {
 				(void) fprintf(stderr, OPT_DC_EXCL);
@@ -111,13 +110,6 @@ main(int argc, char **argv)
 		do_decomp();
 	else {
 		do_comp(blksize);
-		if (doioc) {
-			if (ioctl(dstfd, _FIO_COMPRESSED, 0) == -1) {
-				(void) fprintf(stderr, FIO_COMP_FAIL,
-				    dstfile, strerror(errno));
-				exit(-1);
-			}
-		}
 	}
 	return (0);
 }
