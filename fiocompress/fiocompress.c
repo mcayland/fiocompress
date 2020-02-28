@@ -40,6 +40,7 @@
 #include <zlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <endian.h>
 
 #include "message.h"
 
@@ -178,11 +179,11 @@ do_comp(size_t blksize)
 		exit(-1);
 	}
 
-	hdr->ch_magic = CH_MAGIC_ZLIB;
-	hdr->ch_version = CH_VERSION;
-	hdr->ch_algorithm = CH_ALG_ZLIB;
-	hdr->ch_fsize = srclen;
-	hdr->ch_blksize = blksize;
+	hdr->ch_magic = htobe64(CH_MAGIC_ZLIB);
+	hdr->ch_version = htobe64(CH_VERSION);
+	hdr->ch_algorithm = htobe64(CH_ALG_ZLIB);
+	hdr->ch_fsize = htobe64(srclen);
+	hdr->ch_blksize = htobe64(blksize);
 
 	dstlen = ZMAXBUF(blksize);
 	dstbuf = malloc(dstlen);
@@ -201,7 +202,7 @@ do_comp(size_t blksize)
 		ulong_t slen, dlen;
 		int ret;
 
-		hdr->ch_blkmap[i] = offset;
+		hdr->ch_blkmap[i] = htobe64(offset);
 		slen = MIN(srclen, blksize);
 		dlen = dstlen;
 		ret = compress2(dstbuf, &dlen, (Bytef *)srcaddr, slen, 9);
@@ -245,34 +246,34 @@ do_decomp()
 	int ret;
 
 	hdr = (struct comphdr *)(void *)srcaddr;
-	if (hdr->ch_magic != CH_MAGIC_ZLIB) {
+	if (be64toh(hdr->ch_magic) != CH_MAGIC_ZLIB) {
 		(void) fprintf(stderr, BAD_MAGIC,
-		    srcfile, (uint64_t)hdr->ch_magic, CH_MAGIC_ZLIB);
+		    srcfile, (uint64_t)be64toh(hdr->ch_magic), CH_MAGIC_ZLIB);
 		exit(-1);
 	}
-	if (hdr->ch_version != CH_VERSION) {
+	if (be64toh(hdr->ch_version) != CH_VERSION) {
 		(void) fprintf(stderr, BAD_VERS,
-		    srcfile, (uint64_t)hdr->ch_version, CH_VERSION);
+		    srcfile, (uint64_t)be64toh(hdr->ch_version), CH_VERSION);
 		exit(-1);
 	}
-	if (hdr->ch_algorithm != CH_ALG_ZLIB) {
+	if (be64toh(hdr->ch_algorithm) != CH_ALG_ZLIB) {
 		(void) fprintf(stderr, BAD_ALG,
-		    srcfile, (uint64_t)hdr->ch_algorithm, CH_ALG_ZLIB);
+		    srcfile, (uint64_t)be64toh(hdr->ch_algorithm), CH_ALG_ZLIB);
 		exit(-1);
 	}
 
-	blksize = hdr->ch_blksize;
+	blksize = be64toh(hdr->ch_blksize);
 	dstbuf = malloc(blksize);
 	if (dstbuf == NULL) {
 		(void) fprintf(stderr, HDR_ALLOC, blksize);
 		exit(-1);
 	}
 
-	blks = (hdr->ch_fsize - 1) / blksize;
-	srcaddr += hdr->ch_blkmap[0];
+	blks = (be64toh(hdr->ch_fsize) - 1) / blksize;
+	srcaddr += be64toh(hdr->ch_blkmap[0]);
 	for (i = 0; i < blks; i++) {
 		dlen = blksize;
-		slen = hdr->ch_blkmap[i + 1] - hdr->ch_blkmap[i];
+		slen = be64toh(hdr->ch_blkmap[i + 1]) - be64toh(hdr->ch_blkmap[i]);
 		ret = uncompress(dstbuf, &dlen, (Bytef *)srcaddr, slen);
 		if (ret != Z_OK) {
 			(void) fprintf(stderr, DECOMP_ERR, srcfile, ret);
@@ -292,7 +293,7 @@ do_decomp()
 	}
 
 	dlen = blksize;
-	slen = hdr->ch_fsize - hdr->ch_blkmap[i];
+	slen = be64toh(hdr->ch_fsize) - be64toh(hdr->ch_blkmap[i]);
 	if ((ret = uncompress(dstbuf, &dlen, (Bytef *)srcaddr, slen)) != Z_OK) {
 		(void) fprintf(stderr, DECOMP_ERR, dstfile, ret);
 		exit(-1);
